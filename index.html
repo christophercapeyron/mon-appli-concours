@@ -21,6 +21,7 @@
     }
     * { box-sizing: border-box; }
     body {
+      
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       background: var(--bg);
@@ -153,7 +154,21 @@
     <h1>🏆 Concours Hub</h1>
     <span id="gainsCounter">Gains : 0 €</span>
   </header>
+<div id="compte-box" style="max-width:760px; margin:14px auto; padding:12px 16px; background:#1e293b; border:1px solid rgba(255,255,255,0.08); border-radius:10px;">
+  <div id="compte-deconnecte">
+    <strong>Mon identifiant (connexion / création)</strong><br />
+    <input id="compte-email" type="email" placeholder="Adresse e-mail" style="margin-top:8px; padding:6px;" />
+    <input id="compte-mdp" type="password" placeholder="Mot de passe (6 car. min.)" style="margin-top:8px; padding:6px;" />
+    <button id="btn-connexion" type="button" style="margin-top:8px; padding:6px 12px;">Se connecter</button>
+    <button id="btn-inscription" type="button" style="margin-top:8px; padding:6px 12px;">Créer un compte</button>
+    <p id="compte-message" style="margin:6px 0 0; font-size:0.9rem;"></p>
+  </div>
 
+  <div id="compte-connecte" style="display:none;">
+    <span>Connecté avec : <strong id="compte-email-actif"></strong></span>
+    <button id="btn-deconnexion" type="button" style="margin-left:10px; padding:6px 12px;">Se déconnecter</button>
+  </div>
+</div>
   <main>
     <!-- 1. CONCOURS -->
     <section id="tab-concours" class="tab-content active">
@@ -573,5 +588,110 @@
     renderAll();
    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); } 
   </script>
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+  import {
+    getAuth,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut
+  } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+  import {
+    getFirestore,
+    collection,
+    addDoc,
+    deleteDoc,
+    doc,
+    getDocs,
+    query,
+    where
+  } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCKobUbo5gXLey4z3qIHMbkzH_Ttb8Wgug",
+    authDomain: "mon-appli-concours.firebaseapp.com",
+    projectId: "mon-appli-concours",
+    storageBucket: "mon-appli-concours.firebasestorage.app",
+    messagingSenderId: "810037095426",
+    appId: "1:810037095426:web:406e52767dc22123d84b1b",
+    measurementId: "G-K8P9MYHWXZ"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const emailEl = document.getElementById("compte-email");
+  const mdpEl = document.getElementById("compte-mdp");
+  const msgEl = document.getElementById("compte-message");
+  const boxDeconnecte = document.getElementById("compte-deconnecte");
+  const boxConnecte = document.getElementById("compte-connecte");
+  const emailActifEl = document.getElementById("compte-email-actif");
+
+  document.getElementById("btn-connexion").addEventListener("click", async () => {
+    msgEl.textContent = "Connexion en cours...";
+    try {
+      await signInWithEmailAndPassword(auth, emailEl.value.trim(), mdpEl.value);
+      msgEl.textContent = "";
+    } catch (e) {
+      msgEl.textContent = "Connexion impossible : " + e.message;
+    }
+  });
+
+  document.getElementById("btn-inscription").addEventListener("click", async () => {
+    msgEl.textContent = "Création du compte...";
+    try {
+      await createUserWithEmailAndPassword(auth, emailEl.value.trim(), mdpEl.value);
+      msgEl.textContent = "Compte créé et connecté.";
+    } catch (e) {
+      msgEl.textContent = "Création impossible : " + e.message;
+    }
+  });
+
+  document.getElementById("btn-deconnexion").addEventListener("click", async () => {
+    await signOut(auth);
+  });
+
+  async function chargerConcoursCompte(uid) {
+    const q = query(collection(db, "concours"), where("userId", "==", uid));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  }
+
+  async function ajouterConcoursCompte(uid, concours) {
+    const ref = await addDoc(collection(db, "concours"), {
+      ...concours,
+      userId: uid,
+      createdAt: Date.now()
+    });
+    return { id: ref.id, ...concours, userId: uid };
+  }
+
+  async function supprimerConcoursCompte(contestId) {
+    await deleteDoc(doc(db, "concours", contestId));
+  }
+
+  window.chargerConcoursCompte = chargerConcoursCompte;
+  window.ajouterConcoursCompte = ajouterConcoursCompte;
+  window.supprimerConcoursCompte = supprimerConcoursCompte;
+  window.firebaseAuth = auth;
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      boxDeconnecte.style.display = "none";
+      boxConnecte.style.display = "block";
+      emailActifEl.textContent = user.email;
+
+      const liste = await chargerConcoursCompte(user.uid);
+      localStorage.setItem("concours_hub_cache", JSON.stringify(liste));
+      window.dispatchEvent(new CustomEvent("concours:loaded", { detail: liste }));
+    } else {
+      boxConnecte.style.display = "none";
+      boxDeconnecte.style.display = "block";
+      window.dispatchEvent(new CustomEvent("concours:loggedout"));
+    }
+  });
+</script>
 </body>
 </html>
