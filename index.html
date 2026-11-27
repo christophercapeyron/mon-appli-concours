@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f172a" />
   <link rel="manifest" href="manifest.json" />
-  <title>Concours Hub V1</title>
+  <title>Concours Hub</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -21,7 +21,6 @@
     }
     * { box-sizing: border-box; }
     body {
-      
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       background: var(--bg);
@@ -77,6 +76,7 @@
       font-weight: 600;
       cursor: pointer;
     }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
     button.primary { background: var(--accent); color: #082f49; }
     button.success { background: var(--accent-2); color: #052e16; }
     button.warn { background: var(--warn); color: #451a03; }
@@ -154,22 +154,35 @@
     <h1>🏆 Concours Hub</h1>
     <span id="gainsCounter">Gains : 0 €</span>
   </header>
-<div id="compte-box" style="max-width:760px; margin:14px auto; padding:12px 16px; background:#1e293b; border:1px solid rgba(255,255,255,0.08); border-radius:10px;">
-  <div id="compte-deconnecte">
-    <strong>Mon identifiant (connexion / création)</strong><br />
-    <input id="compte-email" type="email" placeholder="Adresse e-mail" style="margin-top:8px; padding:6px;" />
-    <input id="compte-mdp" type="password" placeholder="Mot de passe (6 car. min.)" style="margin-top:8px; padding:6px;" />
-    <button id="btn-connexion" type="button" style="margin-top:8px; padding:6px 12px;">Se connecter</button>
-    <button id="btn-inscription" type="button" style="margin-top:8px; padding:6px 12px;">Créer un compte</button>
-    <p id="compte-message" style="margin:6px 0 0; font-size:0.9rem;"></p>
+
+  <div id="compte-box" style="max-width:760px; margin:14px auto; padding:0 14px;">
+    <div id="compte-deconnecte" class="card">
+      <div class="card-title">Connexion à ton espace Concours Hub</div>
+      <div class="muted" style="margin-bottom:8px;">Connecte-toi ou crée un compte (vérification par e-mail obligatoire).</div>
+      <input id="compte-email" type="email" placeholder="Adresse e-mail" autocomplete="email" />
+      <input id="compte-mdp" type="password" placeholder="Mot de passe (6 caractères minimum)" autocomplete="current-password" />
+      <div class="row">
+        <button id="btn-connexion" type="button" class="primary">Se connecter</button>
+        <button id="btn-inscription" type="button" class="success">Créer un compte</button>
+        <button id="btn-google" type="button">Continuer avec Google</button>
+        <button id="btn-reset-mdp" type="button">Mot de passe oublié</button>
+      </div>
+      <p id="compte-message" style="margin:10px 0 0; font-size:0.88rem; font-weight:600;"></p>
+    </div>
+
+    <div id="compte-connecte" class="card" style="display:none;">
+      <div class="space-between">
+        <div>
+          <span class="muted">Compte actif :</span>
+          <strong id="compte-email-actif" style="margin-left:4px;"></strong>
+          <div id="sync-status" class="muted" style="font-size:0.78rem; margin-top:2px;">Synchronisé avec le cloud</div>
+        </div>
+        <button id="btn-deconnexion" type="button" class="danger">Se déconnecter</button>
+      </div>
+    </div>
   </div>
 
-  <div id="compte-connecte" style="display:none;">
-    <span>Connecté avec : <strong id="compte-email-actif"></strong></span>
-    <button id="btn-deconnexion" type="button" style="margin-left:10px; padding:6px 12px;">Se déconnecter</button>
-  </div>
-</div>
-  <main>
+  <main id="app-main" style="display:none;">
     <!-- 1. CONCOURS -->
     <section id="tab-concours" class="tab-content active">
       <div class="card">
@@ -285,7 +298,7 @@
     </section>
   </main>
 
-  <nav class="bottom-nav">
+  <nav id="app-nav" class="bottom-nav" style="display:none;">
     <button class="active" data-tab="concours" onclick="switchTab('concours', this)">🏆<span>Concours</span></button>
     <button data-tab="suivis" onclick="switchTab('suivis', this)">📋<span>Suivis</span></button>
     <button data-tab="profil" onclick="switchTab('profil', this)">⚡<span>Kit</span></button>
@@ -310,21 +323,39 @@
       friends: []
     };
 
-    let state = loadState();
+    let state = structuredClone(defaultData);
 
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? { ...defaultData, ...JSON.parse(raw) } : structuredClone(defaultData);
-      } catch {
-        return structuredClone(defaultData);
+    function normalizeState(raw) {
+      const base = structuredClone(defaultData);
+      if (!raw || typeof raw !== 'object') return base;
+      return {
+        profile: { ...base.profile, ...(raw.profile || {}) },
+        contests: Array.isArray(raw.contests) ? raw.contests : [],
+        tracking: Array.isArray(raw.tracking) ? raw.tracking : [],
+        accounts: Array.isArray(raw.accounts) && raw.accounts.length ? raw.accounts : base.accounts,
+        friends: Array.isArray(raw.friends) ? raw.friends : []
+      };
+    }
+
+    async function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      renderAll();
+      if (typeof window.saveUserStateToCloud === 'function') {
+        await window.saveUserStateToCloud(state);
       }
     }
 
-    function saveState() {
+    window.applyCloudState = function(cloudData) {
+      state = normalizeState(cloudData);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       renderAll();
-    }
+    };
+
+    window.resetLocalState = function() {
+      state = structuredClone(defaultData);
+      localStorage.removeItem(STORAGE_KEY);
+      renderAll();
+    };
 
     function showToast(msg = 'Copié !') {
       const t = document.getElementById('toast');
@@ -478,24 +509,32 @@
       copyText(picked);
     }
 
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function renderAll() {
       const totalGains = state.tracking
         .filter(t => t.status === 'won')
         .reduce((sum, t) => sum + (Number(t.prizeValue) || 0), 0);
       document.getElementById('gainsCounter').textContent = `Gains : ${totalGains} €`;
 
-      // Concours
       const cList = document.getElementById('contestList');
       cList.innerHTML = state.contests.length ? state.contests.map(c => `
         <div class="card">
           <div class="space-between">
-            <span class="badge">${c.platform}</span>
+            <span class="badge">${escapeHtml(c.platform)}</span>
             <span class="badge ${c.verifyType === 'manual' ? 'manual' : 'mail'}">
               ${c.verifyType === 'manual' ? 'Vérif. page/site' : 'Vérif. mail'}
             </span>
           </div>
-          <div class="card-title" style="margin-top:8px;">${c.title}</div>
-          <div class="muted">${c.endDate ? 'Fin : ' + c.endDate : 'Date non précisée'}</div>
+          <div class="card-title" style="margin-top:8px;">${escapeHtml(c.title)}</div>
+          <div class="muted">${c.endDate ? 'Fin : ' + escapeHtml(c.endDate) : 'Date non précisée'}</div>
           <div class="row" style="margin-top:10px;">
             <button class="primary" onclick="participateContest(${c.id})">Participer & Suivre</button>
             <button class="danger" onclick="deleteContest(${c.id})">Supprimer</button>
@@ -503,7 +542,6 @@
         </div>
       `).join('') : '<div class="card muted">Aucun concours pour l’instant. Clique sur « + Ajouter » ou « Charger exemples ».</div>';
 
-      // Suivis
       const tList = document.getElementById('trackingList');
       const today = new Date().toISOString().split('T')[0];
       tList.innerHTML = state.tracking.length ? state.tracking.map(t => {
@@ -518,20 +556,19 @@
                 ${t.verifyType === 'manual' ? 'Vérif. page' : 'Mail'}
               </span>
             </div>
-            <div class="card-title" style="margin-top:8px;">${t.title}</div>
-            <div class="muted">${t.endDate ? 'Date résultat : ' + t.endDate : 'Pense à vérifier la publication des résultats'}</div>
+            <div class="card-title" style="margin-top:8px;">${escapeHtml(t.title)}</div>
+            <div class="muted">${t.endDate ? 'Date résultat : ' + escapeHtml(t.endDate) : 'Pense à vérifier la publication des résultats'}</div>
             <div class="row" style="margin-top:10px;">
-              <button onclick="window.open('${t.url}', '_blank')">${t.verifyType === 'manual' ? 'Vérifier sur la page' : 'Ouvrir le lien'}</button>
+              <button onclick="window.open('${escapeHtml(t.url)}', '_blank')">${t.verifyType === 'manual' ? 'Vérifier sur la page' : 'Ouvrir le lien'}</button>
               ${t.verifyType !== 'manual' ? `<button onclick="window.open('https://mail.google.com', '_blank')">Ouvrir Mail</button>` : ''}
               <button class="success" onclick="setTrackingStatus(${t.id}, 'won')">Gagné</button>
-              <button onclick="setTrackingStatus(${t.id}, 'lost')">Perdu</button>
+              <button class="setTrackingStatus" onclick="setTrackingStatus(${t.id}, 'lost')">Perdu</button>
               <button class="danger" onclick="deleteTracking(${t.id})">×</button>
             </div>
           </div>
         `;
       }).join('') : '<div class="card muted">Aucune participation suivie pour le moment.</div>';
 
-      // Profil & Kit copier-coller
       document.getElementById('pName').value = state.profile.name || '';
       document.getElementById('pEmail').value = state.profile.email || '';
       document.getElementById('pPhone').value = state.profile.phone || '';
@@ -547,34 +584,32 @@
       ];
       document.getElementById('quickCopyList').innerHTML = fields.map(([label, val]) => `
         <div class="copy-box">
-          <div><div class="muted">${label}</div><div>${val || '<i>Non renseigné</i>'}</div></div>
+          <div><div class="muted">${label}</div><div>${val ? escapeHtml(val) : '<i>Non renseigné</i>'}</div></div>
           <button onclick="copyText('${(val || '').replace(/'/g, "\\'")}')">Copier</button>
         </div>
       `).join('');
 
-      // Comptes dédiés
       document.getElementById('accountsList').innerHTML = state.accounts.map((acc, idx) => `
         <div class="card">
           <div class="space-between">
-            <div class="card-title">${acc.name}</div>
+            <div class="card-title">${escapeHtml(acc.name)}</div>
             <label class="muted" style="display:flex;align-items:center;gap:6px;margin:0;">
               <input type="checkbox" style="width:auto;margin:0;" ${acc.done ? 'checked' : ''} onchange="updateAccount(${idx}, 'done', this.checked)" />
               Prêt
             </label>
           </div>
-          <input placeholder="Ton pseudo / adresse de ce compte" value="${acc.handle || ''}" onchange="updateAccount(${idx}, 'handle', this.value)" />
+          <input placeholder="Ton pseudo / adresse de ce compte" value="${escapeHtml(acc.handle || '')}" onchange="updateAccount(${idx}, 'handle', this.value)" />
           <div class="row">
-            <button class="primary" onclick="window.open('${acc.url}', '_blank')">Ouvrir ${acc.name.split(' ')[0]}</button>
+            <button class="primary" onclick="window.open('${escapeHtml(acc.url)}', '_blank')">Ouvrir ${escapeHtml(acc.name.split(' ')[0])}</button>
             <button onclick="copyText('${(acc.handle || '').replace(/'/g, "\\'")}')">Copier pseudo</button>
           </div>
         </div>
       `).join('');
 
-      // Amis
       document.getElementById('friendsList').innerHTML = state.friends.length ? state.friends.map(f => `
         <div class="card space-between">
           <div>
-            <strong>${f.pseudo}</strong> <span class="badge">${f.network}</span>
+            <strong>${escapeHtml(f.pseudo)}</strong> <span class="badge">${escapeHtml(f.network)}</span>
             <div class="muted">${f.active ? 'Actif pour les tags' : 'En pause'}</div>
           </div>
           <div class="row">
@@ -586,183 +621,188 @@
     }
 
     renderAll();
-   if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); } 
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
   </script>
+
   <script type="module">
- import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
-  import {
-    getAuth,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    sendEmailVerification,
-    sendPasswordResetEmail,
-    GoogleAuthProvider,
-    signInWithPopup,
-    signOut
-  } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
-  import {
-    getFirestore,
-    collection,
-    addDoc,
-    deleteDoc,
-    doc,
-    getDocs,
-    orderBy,
-    query
-  } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import {
+      getAuth,
+      onAuthStateChanged,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      sendEmailVerification,
+      sendPasswordResetEmail,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      setDoc
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyCKobUbo5gXlEy4z3qIHMbkzH_Ttb8Wgug",
-    authDomain: "mon-appli-concours.firebaseapp.com",
-    projectId: "mon-appli-concours",
-    storageBucket: "mon-appli-concours.firebasestorage.app",
-    messagingSenderId: "810037095426",
-    appId: "1:810037095426:web:406e52767dc22123d84b1b",
-    measurementId: "G-K8P9MYHWXZ"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  const googleProvider = new GoogleAuthProvider();
-
-  const emailEl = document.getElementById("compte-email");
-  const mdpEl = document.getElementById("compte-mdp");
-  const msgEl = document.getElementById("compte-message");
-  const boxDeconnecte = document.getElementById("compte-deconnecte");
-  const boxConnecte = document.getElementById("compte-connecte");
-  const emailActifEl = document.getElementById("compte-email-actif");
-  const btnGoogle = document.getElementById("btn-google");
-  const btnResetMdp = document.getElementById("btn-reset-mdp");
-
-  function setMsg(texte, estErreur = false) {
-    if (!msgEl) return;
-    msgEl.textContent = texte;
-    msgEl.style.color = estErreur ? "#dc2626" : "#059669";
-  }
-
-  function isGoogleUser(user) {
-    return Array.isArray(user?.providerData) &&
-      user.providerData.some((p) => p.providerId === "google.com");
-  }
-
-  document.getElementById("btn-connexion")?.addEventListener("click", async () => {
-    setMsg("Connexion en cours...");
-    try {
-      const email = emailEl?.value.trim() || "";
-      const mdp = mdpEl?.value || "";
-      if (!email || !mdp) {
-        setMsg("Saisis ton adresse e-mail et ton mot de passe.", true);
-        return;
-      }
-      const cred = await signInWithEmailAndPassword(auth, email, mdp);
-      if (!isGoogleUser(cred.user) && !cred.user.emailVerified) {
-        await signOut(auth);
-        setMsg("Adresse e-mail non vérifiée. Clique sur le lien reçu dans ta boîte mail (ou spams) avant de te connecter.", true);
-        return;
-      }
-      setMsg("");
-    } catch (e) {
-      setMsg("Connexion impossible : " + e.message, true);
-    }
-  });
-
-  document.getElementById("btn-inscription")?.addEventListener("click", async () => {
-    setMsg("Création du compte...");
-    try {
-      const email = emailEl?.value.trim() || "";
-      const mdp = mdpEl?.value || "";
-      if (!email || mdp.length < 6) {
-        setMsg("Utilise une adresse e-mail valide et un mot de passe d'au moins 6 caractères.", true);
-        return;
-      }
-      const cred = await createUserWithEmailAndPassword(auth, email, mdp);
-      await sendEmailVerification(cred.user);
-      await signOut(auth);
-      setMsg("Compte créé ! Un e-mail de vérification vient de t'être envoyé. Valide le lien puis connecte-toi.");
-    } catch (e) {
-      setMsg("Création impossible : " + e.message, true);
-    }
-  });
-
-  btnGoogle?.addEventListener("click", async () => {
-    setMsg("Connexion Google en cours...");
-    try {
-      await signInWithPopup(auth, googleProvider);
-      setMsg("");
-    } catch (e) {
-      setMsg("Connexion Google impossible : " + e.message, true);
-    }
-  });
-
-  btnResetMdp?.addEventListener("click", async () => {
-    const email = emailEl?.value.trim() || "";
-    if (!email) {
-      setMsg("Saisis d'abord ton adresse e-mail pour recevoir le lien de réinitialisation.", true);
-      return;
-    }
-    try {
-      await sendPasswordResetEmail(auth, email);
-      setMsg("E-mail de réinitialisation envoyé à " + email + ".");
-    } catch (e) {
-      setMsg("Envoi impossible : " + e.message, true);
-    }
-  });
-
-  document.getElementById("btn-deconnexion")?.addEventListener("click", async () => {
-    await signOut(auth);
-    setMsg("Déconnecté.");
-  });
-
-  async function chargerConcoursCompte(uid) {
-    const colRef = collection(db, "users", uid, "concours");
-    const q = query(colRef, orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  }
-
-  async function ajouterConcoursCompte(uid, concours) {
-    const colRef = collection(db, "users", uid, "concours");
-    const payload = {
-      ...concours,
-      userId: uid,
-      createdAt: Date.now()
+    const firebaseConfig = {
+      apiKey: "AIzaSyCKobUbo5gXlEy4z3qIHMbkzH_Ttb8Wgug",
+      authDomain: "mon-appli-concours.firebaseapp.com",
+      projectId: "mon-appli-concours",
+      storageBucket: "mon-appli-concours.firebasestorage.app",
+      messagingSenderId: "810037095426",
+      appId: "1:810037095426:web:406e52767dc22123d84b1b",
+      measurementId: "G-K8P9MYHWXZ"
     };
-    const ref = await addDoc(colRef, payload);
-    return { id: ref.id, ...payload };
-  }
 
-  async function supprimerConcoursCompte(uid, contestId) {
-    const targetUid = uid || auth.currentUser?.uid;
-    if (!targetUid) throw new Error("Utilisateur non connecté.");
-    await deleteDoc(doc(db, "users", targetUid, "concours", contestId));
-  }
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const googleProvider = new GoogleAuthProvider();
 
-  window.chargerConcoursCompte = chargerConcoursCompte;
-  window.ajouterConcoursCompte = ajouterConcoursCompte;
-  window.supprimerConcoursCompte = supprimerConcoursCompte;
-  window.firebaseAuth = auth;
+    const emailEl = document.getElementById("compte-email");
+    const mdpEl = document.getElementById("compte-mdp");
+    const msgEl = document.getElementById("compte-message");
+    const boxDeconnecte = document.getElementById("compte-deconnecte");
+    const boxConnecte = document.getElementById("compte-connecte");
+    const emailActifEl = document.getElementById("compte-email-actif");
+    const syncStatusEl = document.getElementById("sync-status");
+    const appMainEl = document.getElementById("app-main");
+    const appNavEl = document.getElementById("app-nav");
 
-  onAuthStateChanged(auth, async (user) => {
-    if (user && (isGoogleUser(user) || user.emailVerified)) {
-      if (boxDeconnecte) boxDeconnecte.style.display = "none";
-      if (boxConnecte) boxConnecte.style.display = "block";
-      if (emailActifEl) emailActifEl.textContent = user.email || "";
-
-      const liste = await chargerConcoursCompte(user.uid);
-      localStorage.setItem("concours_hub_cache", JSON.stringify(liste));
-      window.dispatchEvent(new CustomEvent("concours:loaded", { detail: liste }));
-    } else {
-      if (user && !user.emailVerified) {
-        await signOut(auth);
-      }
-      if (boxConnecte) boxConnecte.style.display = "none";
-      if (boxDeconnecte) boxDeconnecte.style.display = "block";
-      localStorage.removeItem("concours_hub_cache");
-      window.dispatchEvent(new CustomEvent("concours:loggedout"));
+    function setMsg(texte, estErreur = false) {
+      msgEl.textContent = texte;
+      msgEl.style.color = estErreur ? "#f87171" : "#4ade80";
     }
-  });
-</script>
+
+    function isGoogleUser(user) {
+      return Array.isArray(user?.providerData) &&
+        user.providerData.some((p) => p.providerId === "google.com");
+    }
+
+    function showProtocolWarningIfNeeded() {
+      if (location.protocol === "file:") {
+        setMsg("Attention : tu as ouvert le fichier en local (file://). Ouvre-le via http://localhost:8000 ou en ligne (https://) pour que la connexion fonctionne.", true);
+      }
+    }
+    showProtocolWarningIfNeeded();
+
+    document.getElementById("btn-connexion").addEventListener("click", async () => {
+      setMsg("Connexion en cours...");
+      try {
+        const email = emailEl.value.trim();
+        const mdp = mdpEl.value;
+        if (!email || !mdp) {
+          setMsg("Saisis ton adresse e-mail et ton mot de passe.", true);
+          return;
+        }
+        const cred = await signInWithEmailAndPassword(auth, email, mdp);
+        if (!isGoogleUser(cred.user) && !cred.user.emailVerified) {
+          await signOut(auth);
+          setMsg("Adresse e-mail non vérifiée. Clique sur le lien reçu dans ta boîte mail (ou spams) avant de te connecter.", true);
+          return;
+        }
+        setMsg("");
+      } catch (e) {
+        setMsg("Connexion impossible : " + e.message, true);
+      }
+    });
+
+    document.getElementById("btn-inscription").addEventListener("click", async () => {
+      setMsg("Création du compte...");
+      try {
+        const email = emailEl.value.trim();
+        const mdp = mdpEl.value;
+        if (!email || mdp.length < 6) {
+          setMsg("Utilise une adresse e-mail valide et un mot de passe d'au moins 6 caractères.", true);
+          return;
+        }
+        const cred = await createUserWithEmailAndPassword(auth, email, mdp);
+        await sendEmailVerification(cred.user);
+        await signOut(auth);
+        setMsg("Compte créé ! Un e-mail de vérification vient d'être envoyé à " + email + ". Clique sur le lien reçu puis connecte-toi.");
+      } catch (e) {
+        setMsg("Création impossible : " + e.message, true);
+      }
+    });
+
+    document.getElementById("btn-google").addEventListener("click", async () => {
+      setMsg("Connexion Google en cours...");
+      try {
+        await signInWithPopup(auth, googleProvider);
+        setMsg("");
+      } catch (e) {
+        setMsg("Connexion Google impossible : " + e.message, true);
+      }
+    });
+
+    document.getElementById("btn-reset-mdp").addEventListener("click", async () => {
+      const email = emailEl.value.trim();
+      if (!email) {
+        setMsg("Saisis d'abord ton adresse e-mail ci-dessus pour recevoir le lien de réinitialisation.", true);
+        return;
+      }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        setMsg("E-mail de réinitialisation envoyé à " + email + ".");
+      } catch (e) {
+        setMsg("Envoi impossible : " + e.message, true);
+      }
+    });
+
+    document.getElementById("btn-deconnexion").addEventListener("click", async () => {
+      await signOut(auth);
+      setMsg("Déconnecté.");
+    });
+
+    window.saveUserStateToCloud = async function(currentState) {
+      const user = auth.currentUser;
+      if (!user) return;
+      if (!isGoogleUser(user) && !user.emailVerified) return;
+      try {
+        if (syncStatusEl) syncStatusEl.textContent = "Enregistrement cloud...";
+        await setDoc(doc(db, "users", user.uid, "appData", "state"), {
+          ...currentState,
+          updatedAt: Date.now()
+        });
+        if (syncStatusEl) syncStatusEl.textContent = "Synchronisé avec le cloud";
+      } catch (e) {
+        if (syncStatusEl) syncStatusEl.textContent = "Erreur synchro : " + e.message;
+      }
+    };
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user && (isGoogleUser(user) || user.emailVerified)) {
+        boxDeconnecte.style.display = "none";
+        boxConnecte.style.display = "block";
+        appMainEl.style.display = "block";
+        appNavEl.style.display = "grid";
+        emailActifEl.textContent = user.email || "";
+
+        try {
+          if (syncStatusEl) syncStatusEl.textContent = "Chargement des données...";
+          const snap = await getDoc(doc(db, "users", user.uid, "appData", "state"));
+          if (snap.exists()) {
+            window.applyCloudState(snap.data());
+          } else {
+            window.applyCloudState(null);
+          }
+          if (syncStatusEl) syncStatusEl.textContent = "Synchronisé avec le cloud";
+        } catch (e) {
+          if (syncStatusEl) syncStatusEl.textContent = "Erreur chargement : " + e.message;
+        }
+      } else {
+        if (user && !user.emailVerified) {
+          await signOut(auth);
+        }
+        boxConnecte.style.display = "none";
+        appMainEl.style.display = "none";
+        appNavEl.style.display = "none";
+        boxDeconnecte.style.display = "block";
+        window.resetLocalState();
+      }
+    });
+  </script>
 </body>
 </html>
