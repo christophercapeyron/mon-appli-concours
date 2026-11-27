@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Concours Hub V1</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-2: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: rgba(255,255,255,0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding-bottom: 84px;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 { font-size: 1.1rem; margin: 0; }
+    header span { font-size: 0.8rem; color: var(--accent); font-weight: 600; }
+    main { padding: 14px; max-width: 760px; margin: 0 auto; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card-title { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
+    .muted { color: var(--muted); font-size: 0.85rem; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .space-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    input, select, textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      margin-top: 6px;
+      margin-bottom: 10px;
+    }
+    button {
+      background: var(--card-2);
+      color: var(--text);
+      border: none;
+      border-radius: 10px;
+      padding: 9px 13px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.primary { background: var(--accent); color: #082f49; }
+    button.success { background: var(--accent-2); color: #052e16; }
+    button.warn { background: var(--warn); color: #451a03; }
+    button.danger { background: var(--danger); color: #fff; }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: var(--card-2);
+      color: var(--text);
+    }
+    .badge.mail { background: rgba(56, 189, 248, 0.2); color: var(--accent); }
+    .badge.manual { background: rgba(245, 158, 11, 0.2); color: var(--warn); }
+    .badge.win { background: rgba(34, 197, 94, 0.2); color: var(--accent-2); }
+    .badge.due { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .copy-box {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg);
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+    }
+    .toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--accent-2);
+      color: #052e16;
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 30;
+    }
+    .toast.show { opacity: 1; }
+    nav.bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #0b1120;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      z-index: 20;
+    }
+    nav.bottom-nav button {
+      background: none;
+      border-radius: 0;
+      padding: 8px 4px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+    nav.bottom-nav button.active {
+      color: var(--accent);
+      background: rgba(56, 189, 248, 0.08);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🏆 Concours Hub</h1>
+    <span id="gainsCounter">Gains : 0 €</span>
+  </header>
+
+  <main>
+    <!-- 1. CONCOURS -->
+    <section id="tab-concours" class="tab-content active">
+      <div class="card">
+        <div class="space-between">
+          <div>
+            <div class="card-title">Flux des concours & ajout rapide</div>
+            <div class="muted">Ajoute un lien trouvé sur Insta/FB/Web ou charge des exemples de flux.</div>
+          </div>
+          <button class="primary" onclick="toggleAddForm()">+ Ajouter</button>
+        </div>
+
+        <div id="addContestForm" style="display:none; margin-top:12px;">
+          <label class="muted">Titre du concours</label>
+          <input id="cTitle" placeholder="Ex: iPhone à gagner - @marque" />
+          <label class="muted">Lien du concours (URL)</label>
+          <input id="cUrl" placeholder="https://..." />
+          <label class="muted">Plateforme</label>
+          <select id="cPlatform">
+            <option>Instagram</option>
+            <option>Facebook</option>
+            <option>Site Web</option>
+            <option>TikTok</option>
+          </select>
+          <label class="muted">Date de fin / résultat (optionnel)</label>
+          <input id="cEndDate" type="date" />
+          <label class="muted">Type de vérification des résultats</label>
+          <select id="cVerifyType">
+            <option value="mail">Mail / Messagerie</option>
+            <option value="manual">Vérification manuelle sur la page/site</option>
+          </select>
+          <div class="row">
+            <button class="success" onclick="addContest()">Enregistrer</button>
+            <button onclick="toggleAddForm()">Annuler</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-bottom:10px;">
+        <button onclick="loadSampleContests()">Charger exemples</button>
+        <button onclick="openSearch('concours instagram france')">🔎 Insta</button>
+        <button onclick="openSearch('jeu concours facebook gratuit')">🔎 FB</button>
+      </div>
+
+      <div id="contestList"></div>
+    </section>
+
+    <!-- 2. MES SUIVIS -->
+    <section id="tab-suivis" class="tab-content">
+      <div class="card">
+        <div class="card-title">Mes participations & tirages</div>
+        <div class="muted">Retrouve ici les concours à vérifier par mail ou directement sur la page.</div>
+      </div>
+      <div id="trackingList"></div>
+    </section>
+
+    <!-- 3. KIT JOUEUR -->
+    <section id="tab-profil" class="tab-content">
+      <div class="card">
+        <div class="card-title">Copier-coller express</div>
+        <div id="quickCopyList"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Mes informations joueur</div>
+        <label class="muted">Prénom & Nom</label>
+        <input id="pName" placeholder="Ex: Alex Martin" />
+        <label class="muted">Adresse mail dédiée concours</label>
+        <input id="pEmail" placeholder="alex.concours@gmail.com" />
+        <label class="muted">Téléphone</label>
+        <input id="pPhone" placeholder="06 12 34 56 78" />
+        <label class="muted">Adresse postale</label>
+        <input id="pAddress" placeholder="12 rue des Lilas" />
+        <label class="muted">Code postal & Ville</label>
+        <input id="pCity" placeholder="31000 Toulouse" />
+        <button class="primary" onclick="saveProfile()">Sauvegarder mon profil</button>
+      </div>
+    </section>
+
+    <!-- 4. COMPTES DÉDIÉS -->
+    <section id="tab-comptes" class="tab-content">
+      <div class="card">
+        <div class="card-title">Comptes & liaisons de départ</div>
+        <div class="muted">Prépare et centralise tes comptes dédiés (Gmail, Insta, FB, TikTok, etc.).</div>
+      </div>
+      <div id="accountsList"></div>
+    </section>
+
+    <!-- 5. AMIS & TAGS -->
+    <section id="tab-amis" class="tab-content">
+      <div class="card">
+        <div class="card-title">Entraide & Générateur de tags</div>
+        <div class="muted">Pioche au hasard des pseudos d'amis pour taguer sur Insta/FB sans spammer toujours les mêmes.</div>
+        <div class="row" style="margin-top:10px;">
+          <button class="primary" onclick="pickRandomFriends(1)">🎲 1 ami</button>
+          <button class="primary" onclick="pickRandomFriends(2)">🎲 2 amis</button>
+          <button class="primary" onclick="pickRandomFriends(3)">🎲 3 amis</button>
+        </div>
+        <div id="pickedTags" class="card" style="margin-top:10px; background:var(--bg); display:none;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Ajouter un ami / pseudo dédié</div>
+        <input id="fPseudo" placeholder="@pseudo_ami ou Nom Facebook" />
+        <select id="fNetwork">
+          <option>Instagram</option>
+          <option>Facebook</option>
+          <option>TikTok</option>
+        </select>
+        <button class="success" onclick="addFriend()">Ajouter à la liste</button>
+      </div>
+
+      <div id="friendsList"></div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="active" data-tab="concours" onclick="switchTab('concours', this)">🏆<span>Concours</span></button>
+    <button data-tab="suivis" onclick="switchTab('suivis', this)">📋<span>Suivis</span></button>
+    <button data-tab="profil" onclick="switchTab('profil', this)">⚡<span>Kit</span></button>
+    <button data-tab="comptes" onclick="switchTab('comptes', this)">🔗<span>Comptes</span></button>
+    <button data-tab="amis" onclick="switchTab('amis', this)">👥<span>Amis</span></button>
+  </nav>
+
+  <div id="toast" class="toast">Copié !</div>
+
+  <script>
+    const STORAGE_KEY = 'concours_hub_v1_data';
+    const defaultData = {
+      profile: { name: '', email: '', phone: '', address: '', city: '' },
+      contests: [],
+      tracking: [],
+      accounts: [
+        { id: 'gmail', name: 'Gmail dédié concours', handle: '', url: 'https://mail.google.com', done: false },
+        { id: 'ig', name: 'Instagram concours', handle: '', url: 'https://www.instagram.com', done: false },
+        { id: 'fb', name: 'Facebook concours', handle: '', url: 'https://www.facebook.com', done: false },
+        { id: 'tt', name: 'TikTok concours', handle: '', url: 'https://www.tiktok.com', done: false }
+      ],
+      friends: []
+    };
+
+    let state = loadState();
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? { ...defaultData, ...JSON.parse(raw) } : structuredClone(defaultData);
+      } catch {
+        return structuredClone(defaultData);
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      renderAll();
+    }
+
+    function showToast(msg = 'Copié !') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 1700);
+    }
+
+    function switchTab(tab, btn) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      document.querySelectorAll('nav.bottom-nav button').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
+
+    function toggleAddForm() {
+      const form = document.getElementById('addContestForm');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function addContest() {
+      const title = document.getElementById('cTitle').value.trim();
+      const url = document.getElementById('cUrl').value.trim();
+      if (!title) return alert('Ajoute au moins un titre.');
+      state.contests.unshift({
+        id: Date.now(),
+        title,
+        url: url || 'https://google.com',
+        platform: document.getElementById('cPlatform').value,
+        endDate: document.getElementById('cEndDate').value,
+        verifyType: document.getElementById('cVerifyType').value
+      });
+      document.getElementById('cTitle').value = '';
+      document.getElementById('cUrl').value = '';
+      document.getElementById('cEndDate').value = '';
+      toggleAddForm();
+      saveState();
+      showToast('Concours ajouté');
+    }
+
+    function loadSampleContests() {
+      const samples = [
+        { id: Date.now() + 1, title: 'Coffret surprise - Concours Instagram', url: 'https://www.instagram.com', platform: 'Instagram', endDate: '', verifyType: 'manual' },
+        { id: Date.now() + 2, title: 'Bon d’achat 100€ - Jeu Web', url: 'https://www.google.com', platform: 'Site Web', endDate: '', verifyType: 'mail' }
+      ];
+      state.contests = [...samples, ...state.contests];
+      saveState();
+      showToast('Exemples chargés');
+    }
+
+    function openSearch(query) {
+      window.open('https://www.google.com/search?q=' + encodeURIComponent(query), '_blank');
+    }
+
+    function participateContest(id) {
+      const c = state.contests.find(item => item.id === id);
+      if (!c) return;
+      state.tracking.unshift({
+        id: Date.now(),
+        title: c.title,
+        url: c.url,
+        platform: c.platform,
+        endDate: c.endDate,
+        verifyType: c.verifyType,
+        status: 'pending',
+        prizeValue: 0
+      });
+      saveState();
+      window.open(c.url, '_blank');
+      showToast('Ajouté aux suivis');
+    }
+
+    function deleteContest(id) {
+      state.contests = state.contests.filter(c => c.id !== id);
+      saveState();
+    }
+
+    function setTrackingStatus(id, status) {
+      const item = state.tracking.find(t => t.id === id);
+      if (!item) return;
+      item.status = status;
+      if (status === 'won') {
+        const val = prompt('Valeur estimée du gain en € (ex: 50) :', item.prizeValue || '20');
+        item.prizeValue = parseFloat(val) || 0;
+      }
+      saveState();
+    }
+
+    function deleteTracking(id) {
+      state.tracking = state.tracking.filter(t => t.id !== id);
+      saveState();
+    }
+
+    function saveProfile() {
+      state.profile = {
+        name: document.getElementById('pName').value.trim(),
+        email: document.getElementById('pEmail').value.trim(),
+        phone: document.getElementById('pPhone').value.trim(),
+        address: document.getElementById('pAddress').value.trim(),
+        city: document.getElementById('pCity').value.trim()
+      };
+      saveState();
+      showToast('Profil sauvegardé');
+    }
+
+    function copyText(text) {
+      if (!text) return showToast('Champ vide');
+      navigator.clipboard.writeText(text).then(() => showToast('Copié : ' + text));
+    }
+
+    function updateAccount(index, field, value) {
+      state.accounts[index][field] = value;
+      saveState();
+    }
+
+    function addFriend() {
+      const pseudo = document.getElementById('fPseudo').value.trim();
+      if (!pseudo) return;
+      state.friends.push({
+        id: Date.now(),
+        pseudo,
+        network: document.getElementById('fNetwork').value,
+        active: true
+      });
+      document.getElementById('fPseudo').value = '';
+      saveState();
+      showToast('Ami ajouté');
+    }
+
+    function toggleFriend(id) {
+      const f = state.friends.find(item => item.id === id);
+      if (f) f.active = !f.active;
+      saveState();
+    }
+
+    function deleteFriend(id) {
+      state.friends = state.friends.filter(item => item.id !== id);
+      saveState();
+    }
+
+    function pickRandomFriends(count) {
+      const activeList = state.friends.filter(f => f.active);
+      if (activeList.length === 0) {
+        return showToast('Ajoute d’abord des amis actifs');
+      }
+      const shuffled = [...activeList].sort(() => Math.random() - 0.5);
+      const picked = shuffled.slice(0, Math.min(count, shuffled.length)).map(f => f.pseudo).join(' ');
+      const box = document.getElementById('pickedTags');
+      box.style.display = 'block';
+      box.innerHTML = `<div class="space-between"><strong>${picked}</strong><button class="success" onclick="copyText('${picked.replace(/'/g, "\\'")}')">Copier</button></div>`;
+      copyText(picked);
+    }
+
+    function renderAll() {
+      const totalGains = state.tracking
+        .filter(t => t.status === 'won')
+        .reduce((sum, t) => sum + (Number(t.prizeValue) || 0), 0);
+      document.getElementById('gainsCounter').textContent = `Gains : ${totalGains} €`;
+
+      // Concours
+      const cList = document.getElementById('contestList');
+      cList.innerHTML = state.contests.length ? state.contests.map(c => `
+        <div class="card">
+          <div class="space-between">
+            <span class="badge">${c.platform}</span>
+            <span class="badge ${c.verifyType === 'manual' ? 'manual' : 'mail'}">
+              ${c.verifyType === 'manual' ? 'Vérif. page/site' : 'Vérif. mail'}
+            </span>
+          </div>
+          <div class="card-title" style="margin-top:8px;">${c.title}</div>
+          <div class="muted">${c.endDate ? 'Fin : ' + c.endDate : 'Date non précisée'}</div>
+          <div class="row" style="margin-top:10px;">
+            <button class="primary" onclick="participateContest(${c.id})">Participer & Suivre</button>
+            <button class="danger" onclick="deleteContest(${c.id})">Supprimer</button>
+          </div>
+        </div>
+      `).join('') : '<div class="card muted">Aucun concours pour l’instant. Clique sur « + Ajouter » ou « Charger exemples ».</div>';
+
+      // Suivis
+      const tList = document.getElementById('trackingList');
+      const today = new Date().toISOString().split('T')[0];
+      tList.innerHTML = state.tracking.length ? state.tracking.map(t => {
+        const isDue = t.status === 'pending' && t.endDate && t.endDate <= today;
+        return `
+          <div class="card">
+            <div class="space-between">
+              <span class="badge ${t.status === 'won' ? 'win' : (isDue ? 'due' : '')}">
+                ${t.status === 'won' ? '🏆 GAGNÉ (' + (t.prizeValue || 0) + ' €)' : (t.status === 'lost' ? 'Perdu' : (isDue ? '⏰ Résultat à vérifier !' : 'En cours'))}
+              </span>
+              <span class="badge ${t.verifyType === 'manual' ? 'manual' : 'mail'}">
+                ${t.verifyType === 'manual' ? 'Vérif. page' : 'Mail'}
+              </span>
+            </div>
+            <div class="card-title" style="margin-top:8px;">${t.title}</div>
+            <div class="muted">${t.endDate ? 'Date résultat : ' + t.endDate : 'Pense à vérifier la publication des résultats'}</div>
+            <div class="row" style="margin-top:10px;">
+              <button onclick="window.open('${t.url}', '_blank')">${t.verifyType === 'manual' ? 'Vérifier sur la page' : 'Ouvrir le lien'}</button>
+              ${t.verifyType !== 'manual' ? `<button onclick="window.open('https://mail.google.com', '_blank')">Ouvrir Mail</button>` : ''}
+              <button class="success" onclick="setTrackingStatus(${t.id}, 'won')">Gagné</button>
+              <button onclick="setTrackingStatus(${t.id}, 'lost')">Perdu</button>
+              <button class="danger" onclick="deleteTracking(${t.id})">×</button>
+            </div>
+          </div>
+        `;
+      }).join('') : '<div class="card muted">Aucune participation suivie pour le moment.</div>';
+
+      // Profil & Kit copier-coller
+      document.getElementById('pName').value = state.profile.name || '';
+      document.getElementById('pEmail').value = state.profile.email || '';
+      document.getElementById('pPhone').value = state.profile.phone || '';
+      document.getElementById('pAddress').value = state.profile.address || '';
+      document.getElementById('pCity').value = state.profile.city || '';
+
+      const fields = [
+        ['Nom', state.profile.name],
+        ['Email', state.profile.email],
+        ['Tél', state.profile.phone],
+        ['Adresse', state.profile.address],
+        ['Ville', state.profile.city]
+      ];
+      document.getElementById('quickCopyList').innerHTML = fields.map(([label, val]) => `
+        <div class="copy-box">
+          <div><div class="muted">${label}</div><div>${val || '<i>Non renseigné</i>'}</div></div>
+          <button onclick="copyText('${(val || '').replace(/'/g, "\\'")}')">Copier</button>
+        </div>
+      `).join('');
+
+      // Comptes dédiés
+      document.getElementById('accountsList').innerHTML = state.accounts.map((acc, idx) => `
+        <div class="card">
+          <div class="space-between">
+            <div class="card-title">${acc.name}</div>
+            <label class="muted" style="display:flex;align-items:center;gap:6px;margin:0;">
+              <input type="checkbox" style="width:auto;margin:0;" ${acc.done ? 'checked' : ''} onchange="updateAccount(${idx}, 'done', this.checked)" />
+              Prêt
+            </label>
+          </div>
+          <input placeholder="Ton pseudo / adresse de ce compte" value="${acc.handle || ''}" onchange="updateAccount(${idx}, 'handle', this.value)" />
+          <div class="row">
+            <button class="primary" onclick="window.open('${acc.url}', '_blank')">Ouvrir ${acc.name.split(' ')[0]}</button>
+            <button onclick="copyText('${(acc.handle || '').replace(/'/g, "\\'")}')">Copier pseudo</button>
+          </div>
+        </div>
+      `).join('');
+
+      // Amis
+      document.getElementById('friendsList').innerHTML = state.friends.length ? state.friends.map(f => `
+        <div class="card space-between">
+          <div>
+            <strong>${f.pseudo}</strong> <span class="badge">${f.network}</span>
+            <div class="muted">${f.active ? 'Actif pour les tags' : 'En pause'}</div>
+          </div>
+          <div class="row">
+            <button onclick="toggleFriend(${f.id})">${f.active ? 'Pause' : 'Activer'}</button>
+            <button class="danger" onclick="deleteFriend(${f.id})">×</button>
+          </div>
+        </div>
+      `).join('') : '<div class="card muted">Aucun ami enregistré. Ajoute des pseudos dédiés ci-dessus.</div>';
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
