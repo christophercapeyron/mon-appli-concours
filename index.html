@@ -589,12 +589,16 @@
    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); } 
   </script>
   <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
   import {
     getAuth,
     onAuthStateChanged,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
+    sendEmailVerification,
+    sendPasswordResetEmail,
+    GoogleAuthProvider,
+    signInWithPopup,
     signOut
   } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
   import {
@@ -604,12 +608,12 @@
     deleteDoc,
     doc,
     getDocs,
-    query,
-    where
+    orderBy,
+    query
   } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
   const firebaseConfig = {
-    apiKey: apiKey: "AIzaSyCKobUbo5gXlEy4z3qIHMbkzH_Ttb8Wgug",
+    apiKey: "AIzaSyCKobUbo5gXlEy4z3qIHMbkzH_Ttb8Wgug",
     authDomain: "mon-appli-concours.firebaseapp.com",
     projectId: "mon-appli-concours",
     storageBucket: "mon-appli-concours.firebasestorage.app",
@@ -621,6 +625,7 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+  const googleProvider = new GoogleAuthProvider();
 
   const emailEl = document.getElementById("compte-email");
   const mdpEl = document.getElementById("compte-mdp");
@@ -628,48 +633,110 @@
   const boxDeconnecte = document.getElementById("compte-deconnecte");
   const boxConnecte = document.getElementById("compte-connecte");
   const emailActifEl = document.getElementById("compte-email-actif");
+  const btnGoogle = document.getElementById("btn-google");
+  const btnResetMdp = document.getElementById("btn-reset-mdp");
 
-  document.getElementById("btn-connexion").addEventListener("click", async () => {
-    msgEl.textContent = "Connexion en cours...";
+  function setMsg(texte, estErreur = false) {
+    if (!msgEl) return;
+    msgEl.textContent = texte;
+    msgEl.style.color = estErreur ? "#dc2626" : "#059669";
+  }
+
+  function isGoogleUser(user) {
+    return Array.isArray(user?.providerData) &&
+      user.providerData.some((p) => p.providerId === "google.com");
+  }
+
+  document.getElementById("btn-connexion")?.addEventListener("click", async () => {
+    setMsg("Connexion en cours...");
     try {
-      await signInWithEmailAndPassword(auth, emailEl.value.trim(), mdpEl.value);
-      msgEl.textContent = "";
+      const email = emailEl?.value.trim() || "";
+      const mdp = mdpEl?.value || "";
+      if (!email || !mdp) {
+        setMsg("Saisis ton adresse e-mail et ton mot de passe.", true);
+        return;
+      }
+      const cred = await signInWithEmailAndPassword(auth, email, mdp);
+      if (!isGoogleUser(cred.user) && !cred.user.emailVerified) {
+        await signOut(auth);
+        setMsg("Adresse e-mail non vérifiée. Clique sur le lien reçu dans ta boîte mail (ou spams) avant de te connecter.", true);
+        return;
+      }
+      setMsg("");
     } catch (e) {
-      msgEl.textContent = "Connexion impossible : " + e.message;
+      setMsg("Connexion impossible : " + e.message, true);
     }
   });
 
-  document.getElementById("btn-inscription").addEventListener("click", async () => {
-    msgEl.textContent = "Création du compte...";
+  document.getElementById("btn-inscription")?.addEventListener("click", async () => {
+    setMsg("Création du compte...");
     try {
-      await createUserWithEmailAndPassword(auth, emailEl.value.trim(), mdpEl.value);
-      msgEl.textContent = "Compte créé et connecté.";
+      const email = emailEl?.value.trim() || "";
+      const mdp = mdpEl?.value || "";
+      if (!email || mdp.length < 6) {
+        setMsg("Utilise une adresse e-mail valide et un mot de passe d'au moins 6 caractères.", true);
+        return;
+      }
+      const cred = await createUserWithEmailAndPassword(auth, email, mdp);
+      await sendEmailVerification(cred.user);
+      await signOut(auth);
+      setMsg("Compte créé ! Un e-mail de vérification vient de t'être envoyé. Valide le lien puis connecte-toi.");
     } catch (e) {
-      msgEl.textContent = "Création impossible : " + e.message;
+      setMsg("Création impossible : " + e.message, true);
     }
   });
 
-  document.getElementById("btn-deconnexion").addEventListener("click", async () => {
+  btnGoogle?.addEventListener("click", async () => {
+    setMsg("Connexion Google en cours...");
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setMsg("");
+    } catch (e) {
+      setMsg("Connexion Google impossible : " + e.message, true);
+    }
+  });
+
+  btnResetMdp?.addEventListener("click", async () => {
+    const email = emailEl?.value.trim() || "";
+    if (!email) {
+      setMsg("Saisis d'abord ton adresse e-mail pour recevoir le lien de réinitialisation.", true);
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setMsg("E-mail de réinitialisation envoyé à " + email + ".");
+    } catch (e) {
+      setMsg("Envoi impossible : " + e.message, true);
+    }
+  });
+
+  document.getElementById("btn-deconnexion")?.addEventListener("click", async () => {
     await signOut(auth);
+    setMsg("Déconnecté.");
   });
 
   async function chargerConcoursCompte(uid) {
-    const q = query(collection(db, "concours"), where("userId", "==", uid));
+    const colRef = collection(db, "users", uid, "concours");
+    const q = query(colRef, orderBy("createdAt", "desc"));
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   }
 
   async function ajouterConcoursCompte(uid, concours) {
-    const ref = await addDoc(collection(db, "concours"), {
+    const colRef = collection(db, "users", uid, "concours");
+    const payload = {
       ...concours,
       userId: uid,
       createdAt: Date.now()
-    });
-    return { id: ref.id, ...concours, userId: uid };
+    };
+    const ref = await addDoc(colRef, payload);
+    return { id: ref.id, ...payload };
   }
 
-  async function supprimerConcoursCompte(contestId) {
-    await deleteDoc(doc(db, "concours", contestId));
+  async function supprimerConcoursCompte(uid, contestId) {
+    const targetUid = uid || auth.currentUser?.uid;
+    if (!targetUid) throw new Error("Utilisateur non connecté.");
+    await deleteDoc(doc(db, "users", targetUid, "concours", contestId));
   }
 
   window.chargerConcoursCompte = chargerConcoursCompte;
@@ -678,17 +745,21 @@
   window.firebaseAuth = auth;
 
   onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      boxDeconnecte.style.display = "none";
-      boxConnecte.style.display = "block";
-      emailActifEl.textContent = user.email;
+    if (user && (isGoogleUser(user) || user.emailVerified)) {
+      if (boxDeconnecte) boxDeconnecte.style.display = "none";
+      if (boxConnecte) boxConnecte.style.display = "block";
+      if (emailActifEl) emailActifEl.textContent = user.email || "";
 
       const liste = await chargerConcoursCompte(user.uid);
       localStorage.setItem("concours_hub_cache", JSON.stringify(liste));
       window.dispatchEvent(new CustomEvent("concours:loaded", { detail: liste }));
     } else {
-      boxConnecte.style.display = "none";
-      boxDeconnecte.style.display = "block";
+      if (user && !user.emailVerified) {
+        await signOut(auth);
+      }
+      if (boxConnecte) boxConnecte.style.display = "none";
+      if (boxDeconnecte) boxDeconnecte.style.display = "block";
+      localStorage.removeItem("concours_hub_cache");
       window.dispatchEvent(new CustomEvent("concours:loggedout"));
     }
   });
